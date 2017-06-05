@@ -4,6 +4,10 @@ module Main where
 
 import Control.Lens
 import Data.Maybe
+import Data.List
+import Control.Monad.Random
+import System.Random.Shuffle
+
 
 
 data Color = Red | Green | Black deriving (Eq)
@@ -36,17 +40,42 @@ showFreeCell :: Either (Maybe Card) Filled -> String
 showFreeCell (Left m) = showMaybeCard m
 showFreeCell (Right Filled) = "++"
 
+joinWith s = foldl1 (\a b -> a ++ s ++ b)
+joinWithSpaces = joinWith " "
+
 instance Show Board where
   show b = let
-              free = foldl1 (++) $ map (\c -> showFreeCell c ++ " ") $ _free b
-              foundation = foldl1 (++) $ map (\c -> showMaybeCard c ++ " ") $ _foundation b
-           in free ++ "   " ++ foundation ++ "\n\n" ++ test
+              showCells shower = joinWithSpaces . map shower
+              free = showCells showFreeCell $ _free b
+              foundation = showCells showMaybeCard $ _foundation b
+              maxHeight = maximum $ map length (_tableau b)
+              padRow r = take maxHeight (map Just r ++ repeat Nothing)
+              paddedRows = map padRow (_tableau b)
+              shownRows = map (map (maybe "  " show)) paddedRows
+              tableau = joinWith "\n" $ map joinWithSpaces $ transpose shownRows
+              numberLabel s e = joinWith "  " $ map show [s..e]
+              topNumbers =  numberLabel 1 3 ++ "     " ++ numberLabel 4 7
+           in topNumbers ++ "\n" ++
+              free ++  "    " ++ foundation ++ "\n\n" ++
+              tableau ++ "\n\n" ++
+              numberLabel 8 14
 
-startingBoard = Board { _free = replicate 3 (Left Nothing),
+newDeck = do
+    deck <- shuffleM cards
+    return Board { _free = replicate 3 (Left Nothing),
                         _foundation = replicate 4 Nothing,
-                        _tableau = replicate 8 (replicate 7 (Card Red Dragon)) }
+                        _tableau = dealCards deck}
+
+cards = [Card c r | c <- [Red, Green, Black], r <- map Number [1..9] ++ replicate 4 Dragon]
+
+dealCards :: [a] -> [[a]]
+dealCards cards = if length cards <= 5 then
+                    [cards]
+                  else
+                    take 5 cards : dealCards (drop 5 cards)
 
 
 main :: IO ()
 main = do
-  putStrLn $ show startingBoard
+  deck <- newDeck
+  print deck
