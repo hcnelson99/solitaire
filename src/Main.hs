@@ -2,7 +2,7 @@
 
 module Main where
 
-import Control.Lens
+import Control.Lens (makeLenses)
 import Data.Maybe
 import Data.List
 import Control.Monad.Random
@@ -23,12 +23,12 @@ instance Show Rank where
 
 data Card = Card Color Rank deriving (Eq)
 
-data Filled = Filled
+data Slot = Empty | Filled | Has Card deriving (Show)
 
 instance Show Card where
   show (Card c r) = show c ++ show r
 
-data Board = Board { _free :: [Either (Maybe Card) Filled],
+data Board = Board { _free :: [Slot],
                      _foundation :: [Maybe Card],
                      _tableau :: [[Card]] }
 makeLenses ''Board
@@ -36,9 +36,9 @@ makeLenses ''Board
 showMaybeCard :: Maybe Card -> String
 showMaybeCard c = fromMaybe "__" (show <$> c)
 
-showFreeCell :: Either (Maybe Card) Filled -> String
-showFreeCell (Left m) = showMaybeCard m
-showFreeCell (Right Filled) = "++"
+showSlot Empty = "__"
+showSlot Filled = "++"
+showSlot (Has c) = show c
 
 joinWith s = foldl1 (\a b -> a ++ s ++ b)
 joinWithSpaces = joinWith " "
@@ -46,23 +46,23 @@ joinWithSpaces = joinWith " "
 instance Show Board where
   show b = let
               showCells shower = joinWithSpaces . map shower
-              free = showCells showFreeCell $ _free b
+              free = showCells showSlot $ _free b
               foundation = showCells showMaybeCard $ _foundation b
               maxHeight = maximum $ map length (_tableau b)
               padRow r = take maxHeight (map Just r ++ repeat Nothing)
               paddedRows = map padRow (_tableau b)
               shownRows = map (map (maybe "  " show)) paddedRows
               tableau = joinWith "\n" $ map joinWithSpaces $ transpose shownRows
-              numberLabel s e = joinWith "  " $ map show [s..e]
-              topNumbers =  numberLabel 1 3 ++ "     " ++ numberLabel 4 7
+              topNumbers =  "1  2  3     4  5  6  7"
+              bottomNumbers = "8  9  10 12 13 14 15 16"
            in topNumbers ++ "\n" ++
               free ++  "    " ++ foundation ++ "\n\n" ++
               tableau ++ "\n\n" ++
-              numberLabel 8 14
+              bottomNumbers
 
 newDeck = do
     deck <- shuffleM cards
-    return Board { _free = replicate 3 (Left Nothing),
+    return Board { _free = replicate 3 Empty,
                         _foundation = replicate 4 Nothing,
                         _tableau = dealCards deck}
 
@@ -74,6 +74,17 @@ dealCards cards = if length cards <= 5 then
                   else
                     take 5 cards : dealCards (drop 5 cards)
 
+toSlot :: Maybe Card -> Slot
+toSlot Nothing = Empty
+toSlot (Just c) = Has c
+
+getCard :: Board -> Int -> Slot
+getCard b n
+  | n <= 0 || n > 16 = undefined
+  | n <= 3 = _free b !! (n - 1)
+  | n <= 7 = toSlot $ _foundation b !! (n - 4)
+  | n <= 14 =  let col = _tableau b !! (n - 8) in
+                  if col == [] then Empty else Has $ last col
 
 main :: IO ()
 main = do
