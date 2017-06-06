@@ -86,6 +86,23 @@ getCard b n
   | n <= 14 =  let col = _tableau b !! (n - 8) in
                   if col == [] then Empty else Has $ last col
 
+canPlace :: Card -> Card -> Int -> Bool
+canPlace (Card _ Dragon) _ _ = False
+canPlace _ (Card _ Dragon) _ = False
+canPlace (Card sc (Number sr)) (Card dc (Number dr)) di = sc /= dc && stacks
+  where stacks = if 4 <= di && di <= 7 then dr + 1 == sr else dr - 1 == sr
+
+move :: Board -> Int -> Int -> Maybe Board
+move b si di = case (source, dest) of
+                (Has s, Has d) -> if canPlace s d di then Just b else Nothing
+                (Has s, Empty) -> Just b
+                (Empty, _) -> Nothing
+                (Filled, _) -> Nothing
+                (_, Filled) -> Nothing
+  where
+    source = getCard b si
+    dest = getCard b di
+
 main :: IO ()
 main = do
   deck <- newDeck
