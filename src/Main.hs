@@ -32,16 +32,6 @@ data Board = Board { _free :: [Slot],
                      _tableau :: [[Card]] }
 makeLenses ''Board
 
-showMaybeCard :: Maybe Card -> String
-showMaybeCard c = fromMaybe "__" (show <$> c)
-
-showSlot Empty = "__"
-showSlot Filled = "++"
-showSlot (Has c) = show c
-
-joinWith s = foldl1 (\a b -> a ++ s ++ b)
-joinWithSpaces = joinWith " "
-
 colors = [(Red, red), (Green, green)]
 
 slotToEither Empty = Right "__"
@@ -56,16 +46,16 @@ printCard (Left card@(Card color _)) = putChunk $ chunk (show card) & fore outpu
 printCard (Right s) = putStr s
 
 printBoard b = let
-            showCells shower = joinWithSpaces . map shower
-            printFree = mapM_ (\c -> printCard (slotToEither c) >> putStr " ") $ _free b
-            printFoundation = mapM_ (\c -> printCard (maybeCardToEither "__" c) >> putStr " ") $ _foundation b
+            printCards converter = mapM_ (\c -> printCard (converter c) >> putStr " ")
+            printFree = printCards slotToEither $ _free b
+            printFoundation = printCards (maybeCardToEither "__") $ _foundation b
             maxHeight = maximum $ map length (_tableau b)
             padRow r = take maxHeight (map Just r ++ repeat Nothing)
             paddedRows = map padRow (_tableau b)
             tableau = zip [1..] (transpose paddedRows)
             printRow (n, r) = do
               putStr $ show n ++ " "
-              mapM_ (\c -> printCard (maybeCardToEither "  " c) >> putStr " ") r
+              printCards (maybeCardToEither "  ") r
               putStr "\n"
             topNumbers =  "1  2  3     4  5  6  7"
             bottomNumbers = "8  9  10 12 13 14 15 16"
