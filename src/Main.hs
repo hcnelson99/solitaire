@@ -7,8 +7,7 @@ import Data.Maybe
 import Data.List
 import Control.Monad.Random
 import System.Random.Shuffle
-
-
+import Rainbow
 
 data Color = Red | Green | Black deriving (Eq)
 instance Show Color where
@@ -43,22 +42,43 @@ showSlot (Has c) = show c
 joinWith s = foldl1 (\a b -> a ++ s ++ b)
 joinWithSpaces = joinWith " "
 
-instance Show Board where
-  show b = let
-              showCells shower = joinWithSpaces . map shower
-              free = showCells showSlot $ _free b
-              foundation = showCells showMaybeCard $ _foundation b
-              maxHeight = maximum $ map length (_tableau b)
-              padRow r = take maxHeight (map Just r ++ repeat Nothing)
-              paddedRows = map padRow (_tableau b)
-              shownRows = map (map (maybe "  " show)) paddedRows
-              tableau = joinWith "\n" $ map joinWithSpaces $ transpose shownRows
-              topNumbers =  "1  2  3     4  5  6  7"
-              bottomNumbers = "8  9  10 12 13 14 15 16"
-           in topNumbers ++ "\n" ++
-              free ++  "    " ++ foundation ++ "\n\n" ++
-              tableau ++ "\n\n" ++
-              bottomNumbers
+colors = [(Red, red), (Green, green)]
+
+slotToEither Empty = Right "__"
+slotToEither Filled = Right "++"
+slotToEither (Has c) = Left c
+
+maybeCardToEither _ (Just card) = Left card
+maybeCardToEither alt Nothing = Right alt
+
+printCard (Left card@(Card color _)) = putChunk $ chunk (show card) & fore outputColor
+  where outputColor = fromMaybe mempty $ lookup color colors
+printCard (Right s) = putStr s
+
+printBoard b = let
+            showCells shower = joinWithSpaces . map shower
+            printFree = do
+              mapM_ (\c -> printCard (slotToEither c) >> putStr " ") $ _free b
+            printFoundation = do
+              mapM_ (\c -> printCard (maybeCardToEither "__" c) >> putStr " ") $ _foundation b
+            maxHeight = maximum $ map length (_tableau b)
+            padRow r = take maxHeight (map Just r ++ repeat Nothing)
+            paddedRows = map padRow (_tableau b)
+            tableau = zip [1..] (transpose paddedRows)
+            printRow (n, r) = do
+              putStr $ show n ++ " "
+              mapM_ (\c -> printCard (maybeCardToEither "  " c) >> putStr " ") r
+              putStr "\n"
+            topNumbers =  "1  2  3     4  5  6  7"
+            bottomNumbers = "8  9  10 12 13 14 15 16"
+         in do
+              putStr $ "  " ++ topNumbers ++ "\n" ++ "  "
+              printFree
+              putStr "   "
+              printFoundation
+              putStr "\n\n"
+              mapM_ printRow tableau
+              putStrLn $ "\n" ++ "  " ++ bottomNumbers
 
 newDeck = do
     deck <- shuffleM cards
@@ -106,4 +126,4 @@ move b si di = case (source, dest) of
 main :: IO ()
 main = do
   deck <- newDeck
-  print deck
+  printBoard deck

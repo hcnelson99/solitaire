@@ -20,4 +20,5 @@ executable solitaire
   build-depends:       base >= 4.7 && < 5,
                        lens,
                        MonadRandom,
-                       random-shuffle
+                       random-shuffle,
+                       rainbow
