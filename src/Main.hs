@@ -57,10 +57,8 @@ printCard (Right s) = putStr s
 
 printBoard b = let
             showCells shower = joinWithSpaces . map shower
-            printFree = do
-              mapM_ (\c -> printCard (slotToEither c) >> putStr " ") $ _free b
-            printFoundation = do
-              mapM_ (\c -> printCard (maybeCardToEither "__" c) >> putStr " ") $ _foundation b
+            printFree = mapM_ (\c -> printCard (slotToEither c) >> putStr " ") $ _free b
+            printFoundation = mapM_ (\c -> printCard (maybeCardToEither "__" c) >> putStr " ") $ _foundation b
             maxHeight = maximum $ map length (_tableau b)
             padRow r = take maxHeight (map Just r ++ repeat Nothing)
             paddedRows = map padRow (_tableau b)
@@ -104,7 +102,7 @@ getCard b n
   | n <= 3 = _free b !! (n - 1)
   | n <= 7 = toSlot $ _foundation b !! (n - 4)
   | n <= 14 =  let col = _tableau b !! (n - 8) in
-                  if col == [] then Empty else Has $ last col
+                  if null col then Empty else Has $ last col
 
 canPlace :: Card -> Card -> Int -> Bool
 canPlace (Card _ Dragon) _ _ = False
