@@ -1,4 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Main where
 
@@ -21,97 +22,74 @@ instance Show Rank where
   show Dragon = "D"
 
 data Card = Card Color Rank deriving (Eq)
-
-data Slot = Empty | Filled | Has Card deriving (Show)
-
 instance Show Card where
   show (Card c r) = show c ++ show r
 
-data Board = Board { _free :: [Slot],
-                     _foundation :: [Maybe Card],
-                     _tableau :: [[Card]] }
+data Slot = Slot { _holdsOne :: Bool,
+                   _stacksDown :: Bool,
+                   _matchSuit :: Bool,
+                   _cards :: [Card] } | Filled deriving (Show)
+makeLenses ''Slot
+
+freeSlot = Slot { _holdsOne = True, _stacksDown = True, _matchSuit = False, _cards = [] }
+foundationSlot = Slot { _holdsOne = False, _stacksDown = True, _matchSuit = True, _cards = [] }
+tableauSlot cards = Slot { _holdsOne = False, _stacksDown = True, _matchSuit = False, _cards = cards }
+
+
+newtype Board = Board { _slots :: [Slot] } deriving (Show)
 makeLenses ''Board
 
 colors = [(Red, red), (Green, green)]
 
-slotToEither Empty = Right "__"
-slotToEither Filled = Right "++"
-slotToEither (Has c) = Left c
-
-maybeCardToEither _ (Just card) = Left card
-maybeCardToEither alt Nothing = Right alt
-
-printCard (Left card@(Card color _)) = putChunk $ chunk (show card) & fore outputColor
+chunkCard card@(Card color _) = chunk (show card) & fore outputColor
   where outputColor = fromMaybe mempty $ lookup color colors
-printCard (Right s) = putStr s
+
+showSlot Filled = [chunk "++"]
+showSlot Slot {_cards = [], ..} = [chunk "__"]
+showSlot Slot {_cards = cards, ..} = map chunkCard cards
+
+slice begin end = take (end - begin) . drop begin
+
 
 printBoard b = let
-            printCards converter = mapM_ (\c -> printCard (converter c) >> putStr " ")
-            printFree = printCards slotToEither $ _free b
-            printFoundation = printCards (maybeCardToEither "__") $ _foundation b
-            maxHeight = maximum $ map length (_tableau b)
+            slots = _slots b
+            free = slice 0 3 slots
+            foundation = slice 3 7 slots
+            printChunks = mapM_ (\c -> putChunk c >> putStr " ")
+            printSingleSlots = printChunks . map (head . showSlot)
+            _tableau = map _cards . drop 7 $ _slots b
+            maxHeight = maximum $ map length _tableau
             padRow r = take maxHeight (map Just r ++ repeat Nothing)
-            paddedRows = map padRow (_tableau b)
+            paddedRows = map padRow _tableau
             tableau = zip [1..] (transpose paddedRows)
             printRow (n, r) = do
               putStr $ show n ++ " "
-              printCards (maybeCardToEither "  ") r
+              printChunks $ map (\card -> fromMaybe (chunk "  ") (chunkCard <$> card)) r
               putStr "\n"
             topNumbers =  "1  2  3     4  5  6  7"
             bottomNumbers = "8  9  10 12 13 14 15 16"
          in do
               putStr $ "  " ++ topNumbers ++ "\n" ++ "  "
-              printFree
+              printSingleSlots free
               putStr "   "
-              printFoundation
+              printSingleSlots foundation
               putStr "\n\n"
               mapM_ printRow tableau
               putStrLn $ "\n" ++ "  " ++ bottomNumbers
 
-newDeck = do
-    deck <- shuffleM cards
-    return Board { _free = replicate 3 Empty,
-                        _foundation = replicate 4 Nothing,
-                        _tableau = dealCards deck}
+newBoard = do
+    sDeck <- shuffleM deck
+    return Board { _slots = replicate 3 freeSlot ++ replicate 4 foundationSlot ++ dealCards sDeck }
 
-cards = [Card c r | c <- [Red, Green, Black], r <- map Number [1..9] ++ replicate 4 Dragon]
+deck = [Card c r | c <- [Red, Green, Black], r <- map Number [1..9] ++ replicate 4 Dragon]
 
-dealCards :: [a] -> [[a]]
 dealCards cards = if length cards <= 5 then
-                    [cards]
+                    [tableauSlot cards]
                   else
-                    take 5 cards : dealCards (drop 5 cards)
+                    tableauSlot (take 5 cards) : dealCards (drop 5 cards)
 
-toSlot :: Maybe Card -> Slot
-toSlot Nothing = Empty
-toSlot (Just c) = Has c
-
-getCard :: Board -> Int -> Slot
-getCard b n
-  | n <= 0 || n > 16 = undefined
-  | n <= 3 = _free b !! (n - 1)
-  | n <= 7 = toSlot $ _foundation b !! (n - 4)
-  | n <= 14 =  let col = _tableau b !! (n - 8) in
-                  if null col then Empty else Has $ last col
-
-canPlace :: Card -> Card -> Int -> Bool
-canPlace (Card _ Dragon) _ _ = False
-canPlace _ (Card _ Dragon) _ = False
-canPlace (Card sc (Number sr)) (Card dc (Number dr)) di = sc /= dc && stacks
-  where stacks = if 4 <= di && di <= 7 then dr + 1 == sr else dr - 1 == sr
-
-move :: Board -> Int -> Int -> Maybe Board
-move b si di = case (source, dest) of
-                (Has s, Has d) -> if canPlace s d di then Just b else Nothing
-                (Has s, Empty) -> Just b
-                (Empty, _) -> Nothing
-                (Filled, _) -> Nothing
-                (_, Filled) -> Nothing
-  where
-    source = getCard b si
-    dest = getCard b di
 
 main :: IO ()
 main = do
-  deck <- newDeck
-  printBoard deck
+  board <- newBoard
+  printBoard board
