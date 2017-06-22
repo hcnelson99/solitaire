@@ -115,6 +115,7 @@ safeLast l = Just $ last l
 
 canPlace :: [Card] -> Slot -> Bool
 canPlace [] _ = error "No cards passed"
+canPlace _ Filled = False
 canPlace cards slot = correctSize && validStack
   where
     stacksDown = _stacksDown slot
@@ -124,7 +125,30 @@ canPlace cards slot = correctSize && validStack
     correctSize = not (_holdsOne slot) || (length slotCards + length cards == 1)
 
 
-move sb n se b = if canPlace movingCards endSlot then over (nthSlotCards se) (++ movingCards) (over (nthSlotCards sb) (take (length sbCards - n)) b) else b
+
+validDragonExposures :: [Slot] -> [[Int]]
+validDragonExposures slots = filter (any (\i -> 0 <= i && i < 3)) . filter (\l -> length l == 4) $ map (map (view _1)) dragonLocations
+  where
+    notFilled Filled = False
+    notFilled _ = True
+    unfilledSlots = filter notFilled slots
+    exposedCards = (\(i, s) -> fromMaybe [] . fmap (\x -> [(i, x)]) . safeLast $ _cards s) =<< zip [0..] unfilledSlots
+    dragonLocations = map (\color -> filter (\(i, (Card c r)) -> c == color && r == Dragon) exposedCards) [Red, Green, Black]
+
+removeLast l = take (length l - 1) l
+
+setFilled = const Filled
+
+
+-- Assumed validDragonExposures returns sorted output
+removeDragons b = foldl (\b dragonIndices -> setFirstFilled (head dragonIndices) $ removeAllLasts (tail dragonIndices) b) b indices
+  where
+    indices = validDragonExposures $ _slots b
+    setFirstFilled i = over (slots . ix i) setFilled
+    removeLastAt i = over (slots . ix i . cards) removeLast
+    removeAllLasts is b = foldl (\b i -> removeLastAt i b) b is
+
+move sb n se b = removeDragons $ if canPlace movingCards endSlot then over (nthSlotCards se) (++ movingCards) $ over (nthSlotCards sb) (take (length sbCards - n)) b else b
   where
     nthSlotCards i = slots . ix i . cards
     sbCards =  _cards $ _slots b !! sb
@@ -140,6 +164,7 @@ go board = do
   case parsed of
     Just (from:n:[to]) -> go $ move (from - 1) n (to - 1) board
     _ -> go board
+
 
 main :: IO ()
 main = do
