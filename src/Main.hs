@@ -38,8 +38,9 @@ makeLenses ''Board
 
 colors = [(Red, red), (Green, green)]
 
-chunkCard card@(Card color _) = chunk (show card) & fore outputColor
+chunkCard card@(Card color r) = chunk (show card) & fore outputColor -- & boldness
   where outputColor = fromMaybe mempty $ lookup color colors
+        -- boldness = if r == Dragon then bold else id
 
 showSlot Filled = [chunk "++"]
 showSlot Slot {_cards = [], ..} = [chunk "__"]
@@ -74,7 +75,7 @@ printBoard b = let
               putStrLn $ "\n" ++ "  " ++ bottomNumbers
 
 freeSlot = Slot { _holdsOne = True, _stacksDown = True, _matchSuit = False, _cards = [] }
-foundationSlots = map (\c -> Slot { _holdsOne = False, _stacksDown = True, _matchSuit = True, _cards = [Card c (Number 0)] }) [Red, Green, Black]
+foundationSlots = map (\c -> Slot { _holdsOne = False, _stacksDown = False, _matchSuit = True, _cards = [Card c (Number 0)] }) [Red, Green, Black]
 tableauSlot cards = Slot { _holdsOne = False, _stacksDown = True, _matchSuit = False, _cards = cards }
 deck = [Card c r | c <- [Red, Green, Black], r <- map Number [1..9] ++ replicate 4 Dragon]
 
@@ -96,7 +97,7 @@ canBeAfter c1 c2 stacksDown matchSuit = properColor && fromMaybe False properRan
   where
     colorTest = if matchSuit then (==) else (/=)
     properColor = colorTest (color c1) (color c2)
-    rankTest = if stacksDown then (\a b -> a + 1 == b) else (\a b -> b + 1 == a)
+    rankTest = if stacksDown then (\a b -> b + 1 == a) else (\a b -> a + 1 == b)
     properRank = liftA2 rankTest (maybeRank c1) (maybeRank c2)
 
 validStacking :: Bool -> Bool -> [Card] -> Bool
@@ -124,10 +125,10 @@ canPlace cards slot = correctSize && validStack
 validDragonExposures :: [Slot] -> [[Int]]
 validDragonExposures slots = filter (any (\i -> 0 <= i && i < 3)) . filter (\l -> length l == 4) $ map (map (view _1)) dragonLocations
   where
-    notFilled Filled = False
-    notFilled _ = True
-    unfilledSlots = filter notFilled slots
-    exposedCards = (\(i, s) -> fromMaybe [] . fmap (\x -> [(i, x)]) . safeLast $ _cards s) =<< zip [0..] unfilledSlots
+    notFilled (_, Filled) = False
+    notFilled (_, _) = True
+    unfilledSlots = filter notFilled $ zip [0..] slots
+    exposedCards = (\(i, s) -> fromMaybe [] . fmap (\x -> [(i, x)]) . safeLast $ _cards s) =<< unfilledSlots
     dragonLocations = map (\color -> filter (\(i, (Card c r)) -> c == color && r == Dragon) exposedCards) [Red, Green, Black]
 
 removeLast l = take (length l - 1) l
