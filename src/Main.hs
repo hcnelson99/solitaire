@@ -33,11 +33,6 @@ data Slot = Slot { _holdsOne :: Bool,
                    _cards :: [Card] } | Filled deriving (Show)
 makeLenses ''Slot
 
-freeSlot = Slot { _holdsOne = True, _stacksDown = True, _matchSuit = False, _cards = [] }
-foundationSlots = map (\c -> Slot { _holdsOne = False, _stacksDown = True, _matchSuit = True, _cards = [Card c (Number 0)] }) [Red, Green, Black]
-tableauSlot cards = Slot { _holdsOne = False, _stacksDown = True, _matchSuit = False, _cards = cards }
-
-
 newtype Board = Board { _slots :: [Slot] } deriving (Show)
 makeLenses ''Board
 
@@ -51,7 +46,6 @@ showSlot Slot {_cards = [], ..} = [chunk "__"]
 showSlot Slot {_cards = cards, ..} = map chunkCard cards
 
 slice begin end = take (end - begin) . drop begin
-
 
 printBoard b = let
             slots = _slots b
@@ -79,11 +73,14 @@ printBoard b = let
               mapM_ printRow tableau
               putStrLn $ "\n" ++ "  " ++ bottomNumbers
 
+freeSlot = Slot { _holdsOne = True, _stacksDown = True, _matchSuit = False, _cards = [] }
+foundationSlots = map (\c -> Slot { _holdsOne = False, _stacksDown = True, _matchSuit = True, _cards = [Card c (Number 0)] }) [Red, Green, Black]
+tableauSlot cards = Slot { _holdsOne = False, _stacksDown = True, _matchSuit = False, _cards = cards }
+deck = [Card c r | c <- [Red, Green, Black], r <- map Number [1..9] ++ replicate 4 Dragon]
+
 newBoard = do
     sDeck <- shuffleM deck
     return Board { _slots = replicate 3 freeSlot ++ foundationSlots ++ dealCards sDeck }
-
-deck = [Card c r | c <- [Red, Green, Black], r <- map Number [1..9] ++ replicate 4 Dragon]
 
 dealCards cards = if length cards <= 5 then
                     [tableauSlot cards]
@@ -124,8 +121,6 @@ canPlace cards slot = correctSize && validStack
     validStack = validStacking stacksDown matchSuit $ maybe cards (: cards) (safeLast slotCards)
     correctSize = not (_holdsOne slot) || (length slotCards + length cards == 1)
 
-
-
 validDragonExposures :: [Slot] -> [[Int]]
 validDragonExposures slots = filter (any (\i -> 0 <= i && i < 3)) . filter (\l -> length l == 4) $ map (map (view _1)) dragonLocations
   where
@@ -136,9 +131,7 @@ validDragonExposures slots = filter (any (\i -> 0 <= i && i < 3)) . filter (\l -
     dragonLocations = map (\color -> filter (\(i, (Card c r)) -> c == color && r == Dragon) exposedCards) [Red, Green, Black]
 
 removeLast l = take (length l - 1) l
-
 setFilled = const Filled
-
 
 -- Assumed validDragonExposures returns sorted output
 removeDragons b = foldl (\b dragonIndices -> setFirstFilled (head dragonIndices) $ removeAllLasts (tail dragonIndices) b) b indices
@@ -155,7 +148,6 @@ move sb n se b = removeDragons $ if canPlace movingCards endSlot then over (nthS
     endSlot =  _slots b !! se
     movingCards = drop (length sbCards - n) sbCards
 
-
 go board = do
   printBoard board
   putStrLn "[from] [n] [to]"
@@ -164,7 +156,6 @@ go board = do
   case parsed of
     Just (from:n:[to]) -> go $ move (from - 1) n (to - 1) board
     _ -> go board
-
 
 main :: IO ()
 main = do
